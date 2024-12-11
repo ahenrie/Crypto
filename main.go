@@ -2,31 +2,64 @@ package main
 
 import (
 	"fmt"
+	"log"
 
+	"github.com/ahenrie/CryptoFinal/pkg/a5"
 	"github.com/ahenrie/CryptoFinal/pkg/tmto"
 )
 
+func encrypt(plaintext []byte, key uint64, keystreamLength int) []byte {
+	// Initialize A5/1 with the key and frame number (0 for simplicity)
+	lfsr1, lfsr2, lfsr3 := a5.InitializeA5_1(key, 0)
+
+	// Encrypt the plaintext using A5/1's Encrypt function
+	ciphertext := a5.Encrypt(plaintext, lfsr1, lfsr2, lfsr3)
+	return ciphertext
+}
+
+func decrypt(ciphertext []byte, precomputedTable map[string]uint64, keystreamLength int) ([]byte, uint64) {
+	// Generate the keystream from the ciphertext
+	// Assuming ciphertext has been XORed with the keystream
+	keystream := make([]byte, len(ciphertext))
+	for i := 0; i < len(ciphertext); i++ {
+		keystream[i] = ciphertext[i] // Reverse the XOR operation for decryption
+	}
+
+	// Look up the key by the keystream in the precomputed table
+	key, found := precomputedTable[string(keystream)]
+	if !found {
+		log.Fatal("Key not found in precomputed table!")
+	}
+
+	// Decrypt the ciphertext using the guessed key
+	lfsr1, lfsr2, lfsr3 := a5.InitializeA5_1(key, 0)
+	plaintext := a5.Decrypt(ciphertext, lfsr1, lfsr2, lfsr3)
+
+	return plaintext, key
+}
+
 func main() {
-	// Define the keyspace, keystream length, and number of workers for precomputation
-	keyspace := uint64(1000000000) // Adjust based on your keyspace size
-	keystreamLength := 16          // Length of the keystream to be generated
+	// Sample plaintext to test
+	plaintext := []byte("Hello, A5/1 encryption!")
 
-	// Precompute the table of keystreams and corresponding keys
-	precomputedTable := tmto.PrecomputeTable(keyspace, keystreamLength)
+	// Choose a key (this is for encryption only, in practice it would be unknown for decryption)
+	key := uint64(0x1234567890ABCDEF)
 
-	// Example: assume we have a known keystream (from encryption or attack)
-	// In a real scenario, you would extract this from intercepted ciphertext
-	knownKeystream := []byte{
-		0x1A, 0x2B, 0x3C, 0x4D, 0x5E, 0x6F, 0x7A, 0x8B,
-		0x9C, 0xAD, 0xBE, 0xCF, 0xD0, 0xE1, 0xF2, 0x03,
-	}
+	// Define keystream length (e.g., 16 bytes)
+	keystreamLength := 16
 
-	// Perform the TMTO attack
-	key, found := tmto.TMTOAttack(precomputedTable, knownKeystream)
+	// Encrypt the plaintext
+	ciphertext := encrypt(plaintext, key, keystreamLength)
+	fmt.Printf("Ciphertext: %x\n", ciphertext)
 
-	if found {
-		fmt.Printf("Key found: %d\n", key)
-	} else {
-		fmt.Println("Keystream not found in precomputed table.")
-	}
+	// Precompute the table (for simplicity, limit the keyspace size)
+	keyspace := uint64(256) // Smaller keyspace for testing purposes
+	//workers := 4           // Number of workers for parallel processing
+	keystreamTable := tmto.PrecomputeTable(keyspace, keystreamLength)
+
+	// Decrypt the ciphertext by guessing the key using the precomputed table
+	decrypted, guessedKey := decrypt(ciphertext, keystreamTable, keystreamLength)
+
+	fmt.Printf("Decrypted text: %s\n", decrypted)
+	fmt.Printf("Guessed key: %x\n", guessedKey)
 }
