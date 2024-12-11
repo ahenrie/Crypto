@@ -1,6 +1,7 @@
 package a5
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -121,10 +122,17 @@ func TestEncryptionDecryption(t *testing.T) {
 	frameNumber := uint32(0x0001)
 	plaintext := []byte("Hello, A5/1 encryption!")
 
+	// Encrypt
 	lfsr1, lfsr2, lfsr3 := InitializeA5_1(key, frameNumber)
-
 	ciphertext := Encrypt(plaintext, lfsr1, lfsr2, lfsr3)
+
+	// Re-initialize LFSRs for decryption
+	lfsr1, lfsr2, lfsr3 = InitializeA5_1(key, frameNumber)
 	decrypted := Decrypt(ciphertext, lfsr1, lfsr2, lfsr3)
+
+	if string(decrypted) == string(plaintext) {
+		fmt.Printf("Congrats the plaintext: %s was encrypted: %x then decrypted: %s\n", plaintext, ciphertext, decrypted)
+	}
 
 	if string(decrypted) != string(plaintext) {
 		t.Errorf("Decrypted text does not match original. Got: %s, Want: %s", decrypted, plaintext)

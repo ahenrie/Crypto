@@ -60,15 +60,11 @@ func InitializeA5_1(key uint64, frameNumber uint32) (*LFSR, *LFSR, *LFSR) {
 
 func GenerateKeystream(lfsr1, lfsr2, lfsr3 *LFSR, length int) []uint8 {
 	keystream := make([]uint8, length)
-
 	for i := 0; i < length; i++ {
-		// Majority vote for clocking
 		m := majorityVote(lfsr1.ClockingBit(), lfsr2.ClockingBit(), lfsr3.ClockingBit())
 		lfsr1.Clock(lfsr1.ClockingBit() == m)
 		lfsr2.Clock(lfsr2.ClockingBit() == m)
 		lfsr3.Clock(lfsr3.ClockingBit() == m)
-
-		// XOR output bits to generate the keystream bit
 		keystream[i] = uint8((lfsr1.state & 1) ^ (lfsr2.state & 1) ^ (lfsr3.state & 1))
 	}
 	return keystream
