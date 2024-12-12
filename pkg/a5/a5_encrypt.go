@@ -10,5 +10,5 @@ func Encrypt(plaintext []byte, lfsr1, lfsr2, lfsr3 *LFSR) []byte {
 }
 
 func Decrypt(ciphertext []byte, lfsr1, lfsr2, lfsr3 *LFSR) []byte {
-	return Encrypt(ciphertext, lfsr1, lfsr2, lfsr3) // XOR is symmetric
+	return Encrypt(ciphertext, lfsr1, lfsr2, lfsr3)
 }

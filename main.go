@@ -1,65 +1,103 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
-	"log"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/ahenrie/CryptoFinal/pkg/a5"
 	"github.com/ahenrie/CryptoFinal/pkg/tmto"
 )
 
-func encrypt(plaintext []byte, key uint64, keystreamLength int) []byte {
-	// Initialize A5/1 with the key and frame number (0 for simplicity)
-	lfsr1, lfsr2, lfsr3 := a5.InitializeA5_1(key, 0)
-
-	// Encrypt the plaintext using A5/1's Encrypt function
-	ciphertext := a5.Encrypt(plaintext, lfsr1, lfsr2, lfsr3)
-	return ciphertext
-}
-
-func decrypt(ciphertext []byte, precomputedTable map[string]uint64, keystreamLength int) ([]byte, uint64) {
-	// Generate the keystream from the ciphertext
-	// Assuming ciphertext has been XORed with the keystream
-	keystream := make([]byte, len(ciphertext))
-	for i := 0; i < len(ciphertext); i++ {
-		keystream[i] = ciphertext[i] // Reverse the XOR operation for decryption
-	}
-
-	// Look up the key by the keystream in the precomputed table
-	key, found := precomputedTable[string(keystream)]
-	if !found {
-		log.Fatal("Key not found in precomputed table!")
-	}
-
-	// Decrypt the ciphertext using the guessed key
-	lfsr1, lfsr2, lfsr3 := a5.InitializeA5_1(key, 0)
-	plaintext := a5.Decrypt(ciphertext, lfsr1, lfsr2, lfsr3)
-
-	return plaintext, key
-}
-
 func main() {
-	// Sample plaintext to test
-	plaintext := []byte("Hello, A5/1 encryption!")
+	// Get user's name
+	fmt.Println("*********************************")
+	fmt.Println("* Welcome to the A5/1 TMTO Attack *")
+	fmt.Println("*********************************")
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Println("What is your name: ")
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+	fmt.Printf("Hello, %s. We will be encrypting your name today then breaking the encryption.\n", input)
 
-	// Choose a key (this is for encryption only, in practice it would be unknown for decryption)
-	key := uint64(0x1234567890ABCDEF)
+	// Perform byte conversion and insertion point for the key
+	plaintext := []byte(input + " smells!")
+	insertionPoint := uint64(999999)
 
-	// Define keystream length (e.g., 16 bytes)
-	keystreamLength := 16
+	// Define known parameters
+	frameNumber := uint32(0x0001)
+	keystreamLength := 64 // 64 bits
+
+	// Key handling
+	var key uint64
+	for {
+		fmt.Println("*********************************")
+		fmt.Println("* Please enter a 64-bit hexadecimal key *")
+		fmt.Println("* (e.g. 1234567890abcdef) *")
+		fmt.Println("*********************************")
+		reader2 := bufio.NewReader(os.Stdin)
+		keyInput, _ := reader2.ReadString('\n')
+		keyInput = strings.TrimSpace(keyInput)
+
+		// Validate the input
+		if len(keyInput) != 16 {
+			fmt.Println("Invalid input. Please enter a 16-character hexadecimal string.")
+			continue
+		}
+
+		// Check if the input is a valid hexadecimal string
+		if !regexp.MustCompile(`^[0-9a-fA-F]+$`).MatchString(keyInput) {
+			fmt.Println("Invalid input. Please enter a hexadecimal string.")
+			continue
+		}
+
+		// If the input is valid, parse it to a uint64
+		key, _ = strconv.ParseUint(keyInput, 16, 64)
+		break
+	}
+
+	// Initialize A5/1 with the key and frame number
+	lfsr1, lfsr2, lfsr3 := a5.InitializeA5_1(key, frameNumber)
 
 	// Encrypt the plaintext
-	ciphertext := encrypt(plaintext, key, keystreamLength)
+	ciphertext := a5.Encrypt(plaintext, lfsr1, lfsr2, lfsr3)
+	fmt.Println("*********************************")
+	fmt.Println("* Encryption Complete! *")
+	fmt.Println("*********************************")
 	fmt.Printf("Ciphertext: %x\n", ciphertext)
 
-	// Precompute the table (for simplicity, limit the keyspace size)
-	keyspace := uint64(256) // Smaller keyspace for testing purposes
-	//workers := 4           // Number of workers for parallel processing
-	keystreamTable := tmto.PrecomputeTable(keyspace, keystreamLength)
+	// Precompute the table
+	fmt.Println("*********************************")
+	fmt.Println("* Generating Table... *")
+	fmt.Println("*********************************")
+	table := tmto.PrecomputeTable(1000000, keystreamLength, key, insertionPoint)
 
-	// Decrypt the ciphertext by guessing the key using the precomputed table
-	decrypted, guessedKey := decrypt(ciphertext, keystreamTable, keystreamLength)
+	lfsr11, lfsr21, lfsr31 := a5.InitializeA5_1(key, 0)
+	keystream := a5.GenerateKeystream(lfsr11, lfsr21, lfsr31, 64)
 
-	fmt.Printf("Decrypted text: %s\n", decrypted)
-	fmt.Printf("Guessed key: %x\n", guessedKey)
+	// Search for the key in the table
+	fmt.Println("*********************************")
+	fmt.Println("* Attempting to Decrypt... *")
+	fmt.Println("*********************************")
+	found, foundKey, foundKeystream := tmto.SearchTableByKeystream(table, keystream)
+	if found {
+		fmt.Println("*********************************")
+		fmt.Println("* Decryption Successful! *")
+		fmt.Println("*********************************")
+		fmt.Printf("Found key: %x\n", foundKey)
+		fmt.Printf("Found keystream: %x\n", foundKeystream)
+
+		// Decrypt the ciphertext using the found key
+		lfsr1, lfsr2, lfsr3 = a5.InitializeA5_1(foundKey, frameNumber)
+		decrypted := a5.Decrypt(ciphertext, lfsr1, lfsr2, lfsr3)
+		fmt.Printf("Decrypted plaintext: %s\n", decrypted)
+	} else {
+		fmt.Println("*********************************")
+		fmt.Println("* Decryption Failed! *")
+		fmt.Println("*********************************")
+		fmt.Println("Keystream not found in table")
+	}
 }
