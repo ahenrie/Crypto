@@ -15,7 +15,7 @@ import (
 func main() {
 	// Get user's name
 	fmt.Println("*********************************")
-	fmt.Println("* Welcome to the A5/1 TMTO Attack *")
+	fmt.Println("* Welcome to the A5/1 TMTO *")
 	fmt.Println("*********************************")
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Println("What is your name: ")
@@ -24,7 +24,7 @@ func main() {
 	fmt.Printf("Hello, %s. We will be encrypting your name today then breaking the encryption.\n", input)
 
 	// Perform byte conversion and insertion point for the key
-	plaintext := []byte(input + " smells!")
+	plaintext := []byte(" Hi! " + input + ". We inserted your key into the lookup table to save time.")
 	insertionPoint := uint64(999999)
 
 	// Define known parameters
